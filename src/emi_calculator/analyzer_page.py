@@ -11,13 +11,14 @@ from datetime import date
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+from .calculator_page import reset_calculator
 
 from .analyzer import (TEMPLATE_GUIDE, analyze_loans, balance_projection, build_prefill, clean_loans,
                        key_insights, portfolio_summary, read_file, sample_loans, template_bytes, yearly_flows)
 from .core import LOAN_TYPES, amortization_schedule
 
 CALC = "Loan EMI Calculator"
-NAVY, TEAL, GOLD, SLATE, MIST, LINE = "#0B1F3A", "#0E7C66", "#A8823F", "#5B6B7F", "#8A97A8", "#E3E7ED"
+NAVY, TEAL, GOLD, SLATE, MIST, LINE = "#0B1F3A", "#0E7C66", "#A8823F", "#64748B", "#94A3B8", "#E2E8F0"
 SERIES = ["#0B1F3A", "#0E7C66", "#A8823F", "#4A6A8A", "#7FA99B", "#9AA7B6", "#5C4B7A", "#B4A27A"]
 
 
@@ -34,6 +35,12 @@ def aed(x: float, dec: int = 0) -> str:
 def num(x: float, dec: int = 0, suffix: str = "") -> str:
     """Number with count-up hook (animated once, right after analysis)."""
     return f"<span class='num' data-v='{x:.{dec}f}' data-d='{dec}' data-s='{suffix}'>{x:,.{dec}f}{suffix}</span>"
+
+
+def section(title: str, note: str = "", tag: str = "h2"):
+    """Section heading - reuses the EMI Calculator's .section-title component (accent bar + title)."""
+    H(f"<div class='section-title'><div class='bar'></div><{tag}>{title}</{tag}>"
+      + (f"<span class='note'>{note}</span>" if note else "") + "</div>")
 
 
 def bold(t: str) -> str:
@@ -68,6 +75,7 @@ def chart_theme(fig: go.Figure, h: int = 320, **kw) -> go.Figure:
 
 
 PLOT_CFG = {"displayModeBar": False, "responsive": True}
+PANEL_CHART_H = 340   # same chart height in both panels of a pair
 
 
 def _rgba(hex_color: str, alpha: float) -> str:
@@ -152,7 +160,7 @@ def _send_to_calculator(loan_id: str, card: str, mode: str):
         return
     loan = a.set_index("Loan_ID").loc[loan_id]
     values, notes = build_prefill(loan, card, mode)
-    st.session_state.pop(f"{card}_ten", None)
+    reset_calculator()                 # clear earlier pre-fills so only the chosen card gets this loan
     st.session_state.update(values)
     what = "remaining balance" if mode == "remaining" else "original terms"
     st.session_state.calc_prefill_info = {"card": card, "label": f"{loan_id} ({what})", "notes": notes}
@@ -164,7 +172,7 @@ def _hero():
     with st.container(key="az_hero"):
         c1, c2 = st.columns([1.7, 1], gap="large", vertical_alignment="center")
         with c1:
-            H("""<div class="hero-copy"><div class="eyebrow">Loan Analyzer</div>
+            H("""<div class="hero-copy"><div class="badge">🇦🇪 Loan Analyzer</div>
                  <h1>Understand your loan in minutes</h1>
                  <p>Upload your loan statement or Excel file and get a clear view of your repayment, interest,
                  outstanding balance and key loan insights.</p></div>""")
@@ -308,7 +316,7 @@ def _overview(a: pd.DataFrame, s: dict):
     status = (f"<span class='badge ok'>{s['active']} active</span> " if s["active"] else "") + \
              (f"<span class='badge muted'>{s['closed']} closed</span>" if s["closed"] else "")
     with st.container(key="card_overview"):
-        H(f"""<div class="ov-head"><div><div class="eyebrow">Portfolio</div><h2>Loan Overview</h2></div>
+        H(f"""<div class="ov-head"><div class="section-title"><div class="bar"></div><h2>Loan Overview</h2></div>
               <div>{status}</div></div>
               <div class="hero-metrics">
                 <div class="hero-metric"><div class="l">Original loan amount</div>
@@ -333,7 +341,8 @@ def _overview(a: pd.DataFrame, s: dict):
 
 
 def _progress_and_details(a: pd.DataFrame, s: dict):
-    c1, c2 = st.columns([1.7, 1], gap="medium")
+    with st.container(key="pair_top"):
+        c1, c2 = st.columns(2, gap="medium")
     with c1, st.container(key="card_progress"):
         H("<div class='panel-title'>Repayment Progress</div><div class='panel-sub'>Principal repaid versus remaining principal.</div>")
         if len(a) == 1:
@@ -341,7 +350,7 @@ def _progress_and_details(a: pd.DataFrame, s: dict):
                                    values=[s["repaid"], s["outstanding"]], hole=.72, sort=False,
                                    marker=dict(colors=[TEAL, "#D9E0E8"], line=dict(color="#fff", width=2)),
                                    textinfo="none", hovertemplate="%{label}<br>AED %{value:,.0f}<extra></extra>"))
-            chart_theme(fig, 300, showlegend=True,
+            chart_theme(fig, PANEL_CHART_H, showlegend=True,
                         annotations=[dict(text=f"<b style='font-size:22px;color:{NAVY}'>{s['progress']:.0f}%</b><br>repaid",
                                           showarrow=False, font=dict(size=12, color=SLATE))])
             fig.update_layout(legend=dict(orientation="h", y=-0.05, x=.5, xanchor="center"))
@@ -355,10 +364,11 @@ def _progress_and_details(a: pd.DataFrame, s: dict):
             fig.add_bar(y=a["Loan_ID"], x=100 - a["Progress_Pct"], name="Remaining principal", orientation="h",
                         marker=dict(color="#D9E0E8"), customdata=cd,
                         hovertemplate="<b>%{y}</b> · %{customdata[2]}<br>Remaining: AED %{customdata[1]:,.0f}<extra></extra>")
-            chart_theme(fig, max(220, 52 * len(a) + 70), barmode="stack")
+            chart_theme(fig, max(PANEL_CHART_H, 44 * len(a) + 90), barmode="stack")
             fig.update_xaxes(range=[0, 100.5], tickvals=[0, 25, 50, 75, 100], ticksuffix="%", showgrid=True,
                              gridcolor="#EEF1F5", ticks="")
-            fig.update_yaxes(autorange="reversed", gridcolor="rgba(0,0,0,0)", tickfont=dict(color=NAVY, size=12))
+            fig.update_yaxes(type="category", autorange="reversed", gridcolor="rgba(0,0,0,0)",
+                             tickfont=dict(color=NAVY, size=12))
         st.plotly_chart(fig, width="stretch", key="az_progress_chart", config=PLOT_CFG)
     with c2, st.container(key="card_details"):
         H("<div class='panel-title'>Loan Details</div><div class='panel-sub'>Key facts from your file.</div>")
@@ -403,7 +413,7 @@ def _interest_vs_principal(a: pd.DataFrame):
                         hovertemplate="%{x} · principal: AED %{y:,.0f}<extra>" + kind + "</extra>", legendgroup=kind)
             fig.add_bar(x=d["Year"], y=d["Interest"], name=f"Interest · {kind.lower()}", marker=dict(color=GOLD, opacity=op),
                         hovertemplate="%{x} · interest: AED %{y:,.0f}<extra>" + kind + "</extra>", legendgroup=kind)
-        chart_theme(fig, 360, barmode="relative", margin=dict(t=24, b=8, l=8, r=8),
+        chart_theme(fig, PANEL_CHART_H, barmode="relative", margin=dict(t=24, b=8, l=8, r=8),
                     legend=dict(orientation="h", x=0, y=-0.14, font=dict(size=11, color=SLATE), traceorder="normal"))
         fig.update_yaxes(tickprefix="AED ", tickformat="~s")
         fig.update_xaxes(dtick=1 if y["Year"].nunique() <= 12 else 2, tickformat="d")
@@ -425,10 +435,11 @@ def _outstanding_balance(a: pd.DataFrame):
         fig = go.Figure()
         for i, (loan, g) in enumerate(proj.groupby("Loan", sort=False)):
             c = SERIES[i % len(SERIES)]
-            fig.add_scatter(x=g["Date"], y=g["Outstanding"], name=loan, stackgroup="one", mode="lines",
+            fig.add_scatter(x=g["Date"], y=g["Outstanding"], name=str(loan), stackgroup="one", mode="lines",
                             line=dict(width=1, color=c), fillcolor=_rgba(c, .72),
                             hovertemplate="%{x|%b %Y}: AED %{y:,.0f}<extra>" + loan + "</extra>")
-        chart_theme(fig, 330, hovermode="x unified")
+        chart_theme(fig, PANEL_CHART_H, hovermode="x unified",
+                    legend=dict(orientation="h", x=0, y=-0.14, font=dict(size=11, color=SLATE)))
         fig.update_yaxes(tickprefix="AED ", tickformat="~s")
         with st.container(key="scroll_outlook"):
             st.plotly_chart(fig, width="stretch", key="az_outlook_chart", config=PLOT_CFG)
@@ -441,7 +452,7 @@ def _outstanding_balance(a: pd.DataFrame):
 
 
 def _insights(a: pd.DataFrame, salary):
-    H("<div class='h-section'><h3>Key Insights</h3><span>Based only on the data in your file</span></div>")
+    section("Key Insights", "Based only on the data in your file")
     cards = key_insights(a, salary or None)
     H("<div class='insights-grid'>" + "".join(
         f"<div class='insight {c['tone']}' style='animation-delay:{i * 60}ms'><div class='t'>{c['title']}</div>"
@@ -449,7 +460,7 @@ def _insights(a: pd.DataFrame, salary):
 
 
 def _loan_table(a: pd.DataFrame):
-    H("<div class='h-section'><h3>Loan Breakdown</h3><span>Sortable · download available</span></div>")
+    section("Loan Breakdown", "Sortable · download available")
     view = a[["Loan_ID", "Loan_Type", "Bank", "Status", "Loan_Amount", "Interest_Rate", "Tenure_Months", "Start_Date",
               "EMI", "EMIs_Paid", "Remaining_Months", "Outstanding_Principal", "Interest_Paid_To_Date",
               "Interest_Remaining", "Progress_Pct", "Payoff_Date"]]
@@ -472,7 +483,7 @@ def _loan_table(a: pd.DataFrame):
 
 
 def _loan_focus(a: pd.DataFrame) -> str:
-    H("<div class='h-section'><h3>Loan Focus</h3><span>Look closer at a single loan</span></div>")
+    section("Loan Focus", "Look closer at a single loan")
     ids = list(a["Loan_ID"])
     if st.session_state.get("az_loan_sel") not in ids:
         st.session_state.az_loan_sel = next(iter(a.loc[a["Status"] != "Closed", "Loan_ID"]), ids[0])
@@ -577,7 +588,8 @@ def render():
     st.write("")
     _progress_and_details(a, s)
     st.write("")
-    c1, c2 = st.columns(2, gap="medium")
+    with st.container(key="pair_charts"):
+        c1, c2 = st.columns(2, gap="medium")
     with c1:
         _interest_vs_principal(a)
     with c2:
