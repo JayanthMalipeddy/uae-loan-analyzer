@@ -190,8 +190,6 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 
 1. Push the repo to GitHub (public).
 2. Go to **share.streamlit.io**, choose **New app**, select this repo, branch `main` and main file `app.py`.
-3. Deploy, then add the live link at the top of this README.
-
 ---
 
 ## How it was built (vibe coding)
