@@ -365,16 +365,6 @@ def key_insights(a: pd.DataFrame, monthly_salary: float | None = None) -> list[d
                         + (f" across {s['loans']} loan{plural}" if s["loans"] > 1 else "")
                         + (f". **{s['closed']}** loan{'s are' if s['closed'] > 1 else ' is'} fully repaid." if s["closed"] else ".")})
     if len(active):
-        nxt = active.sort_values("Remaining_Months").iloc[0]
-        if len(active) > 1:
-            out.append({"title": "Next milestone", "tone": "teal",
-                        "text": f"**{nxt['Loan_ID']}** is projected to close in **{nxt['Payoff_Date']:%B %Y}**, "
-                                f"freeing up **AED {nxt['EMI']:,.0f}** a month. All loans are projected to end by "
-                                f"**{s['debt_free']:%B %Y}**."})
-        else:
-            out.append({"title": "Next milestone", "tone": "teal",
-                        "text": f"Your projected loan completion date is **{s['debt_free']:%B %Y}**, "
-                                f"in {s['remaining_months']} months."})
         w, L = _best_prepayment(active)
         if w:
             m = w["months_saved"]

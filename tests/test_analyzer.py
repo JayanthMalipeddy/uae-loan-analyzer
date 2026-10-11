@@ -71,13 +71,14 @@ def test_summary_projection_insights():
     texts = " ".join(t for _, t in build_insights(a, monthly_salary=40_000))
     assert "highest rate" in texts and "debt-burden" in texts
     titles = [i["title"] for i in key_insights(a, 40_000)]
-    assert titles[:4] == ["Your outstanding balance", "Interest impact", "Repayment progress", "Next milestone"]
+    assert "Next milestone" not in titles
+    assert titles == ["Your outstanding balance", "Interest impact", "Repayment progress",
+                      "Opportunity", "Highest rate", "Debt-burden ratio"]
 
 
 def test_yearly_flows_reconcile():
     a = analyzed()
     y = yearly_flows(a, AS_OF)
-    # principal repaid + projected principal = everything borrowed minus prepayments on non-closed loans
     total_principal = y["Principal"].sum()
     expected = a["Loan_Amount"].sum() - a["Prepayment"].sum()
     assert abs(total_principal - expected) < 5
