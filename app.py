@@ -9,17 +9,19 @@ import streamlit as st
 
 from emi_calculator import analyzer_page, calculator_page
 from emi_calculator.analyzer import template_bytes
+from emi_calculator.calculator_page import svg
 from emi_calculator.core import LOAN_TYPES
 from emi_calculator.styles import CSS, JS_COUNTUP, JS_UPLOAD_DRAG, js_scroll
 
-st.set_page_config(page_title="UAE Loan Analyzer & EMI Calculator", page_icon="🏦", layout="wide")
+st.set_page_config(page_title="UAE Loan Analyzer & EMI Calculator", page_icon="📊", layout="wide")
 st.markdown(CSS, unsafe_allow_html=True)
 
 ANALYZER, CALC = "Loan Analyzer", "Loan EMI Calculator"
 MODULES = {ANALYZER: "Loan Analyzer", CALC: "EMI Calculator"}
 
 # Keep each module's inputs when the user switches modules (Streamlit drops state of hidden widgets)
-_KEEP_PREFIX = tuple(LOAN_TYPES) + ("az_salary", "az_loan_sel", "az_mode_", "az_card_")
+_KEEP_PREFIX = tuple(LOAN_TYPES) + ("az_salary", "az_loan_sel", "az_mode_", "az_card_", "az_projection_view",
+                                    "calc_product")
 for k in list(st.session_state):
     if k.startswith(_KEEP_PREFIX) and not k.endswith(("_dl", "_bar", "_pie")):
         st.session_state[k] = st.session_state[k]
@@ -35,23 +37,24 @@ def _on_nav():
         st.session_state.module = st.session_state._last_module
 
 
-def _help():
-    st.session_state.module = ANALYZER
-    analyzer_page.show_howto()
-
-
 # ---------------------------------------------------------------- header
 with st.container(key="appbar"):
-    brand, nav, actions = st.columns([1.15, 1.3, 1.05], vertical_alignment="center")
-    brand.markdown("""<div class="brand"><div class="logo">AED</div>
-      <div><div class="name">UAE Loan Analyzer</div><div class="tag">Understand your loan · Explore scenarios</div></div>
-    </div>""", unsafe_allow_html=True)
+    brand, nav, actions = st.columns([1.1, 1.2, 1], vertical_alignment="center")
+    brand.markdown(f"""<div class="brand"><div class="logo">{svg("<path d='M4 18 12 4l8 14M7 13h10M8 18h8'/>", 26)}</div>
+      <div><div class="name">UAE Loan Analyzer</div><div class="tag">Loan intelligence</div></div></div>""",
+                   unsafe_allow_html=True)
     nav.segmented_control("Module", list(MODULES), format_func=MODULES.get, key="module",
                           on_change=_on_nav, label_visibility="collapsed")
     with actions.container(key="appbar_actions"):
-        a1, a2 = st.columns([1, 1.15])
-        a1.button("How it works", type="tertiary", on_click=_help, key="hdr_help", width="stretch")
-        a2.download_button("Excel template", template_bytes(), file_name="loan_template.xlsx",
+        a1, a2 = st.columns([.8, 1])
+        with a1.popover("Guide", width="stretch"):
+            st.markdown("""<div class="ua-guide-title">How it works</div><div class="ua-guide">
+              <div><b>01 / Add your data</b><p>Upload a structured Excel or CSV file, with one row per loan. Use the template to check your columns.</p></div>
+              <div><b>02 / Review the details</b><p>Confirm the records found and any validation notes. Then open your repayment dashboard.</p></div>
+              <div><b>03 / Explore scenarios</b><p>Select a loan and send its original terms or remaining balance to the EMI calculator.</p></div>
+              </div><p class="ua-guide-caption">An independent planning tool, not a bank or a loan application service.</p>""",
+                        unsafe_allow_html=True)
+        a2.download_button("Excel template ↓", template_bytes(), file_name="loan_template.xlsx",
                            key="hdr_tpl", width="stretch")
 
 module = st.session_state.module or st.session_state._last_module
